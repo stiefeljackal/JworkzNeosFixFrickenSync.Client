@@ -12,7 +12,6 @@ namespace JworkzNeosMod.Client.Models
 
         public DateTimeOffset? SyncCompletedDate { get; private set; } = null;
 
-
         public bool? IsSuccessfulSync { get; private set; } = null;
 
         public UploadProgressState UploadProgress { get; private set; }

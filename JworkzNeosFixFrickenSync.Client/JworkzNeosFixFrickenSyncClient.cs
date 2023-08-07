@@ -39,14 +39,12 @@ namespace JworkzNeosMod.Client
 
             RecordUploadTaskBasePatch.UploadTaskSuccess += (_, @event) =>
             {
-                var recordEntry = RecordKeeper.Instance.GetRecordEntry(@event.Record);
-                recordEntry.MarkComplete(@event.ProgressState);
+                RecordKeeper.Instance.MarkRecordComplete(@event.Record, @event.ProgressState);
             };
 
             RecordUploadTaskBasePatch.UploadTaskFailure += (_, @event) =>
             {
-                var recordEntry = RecordKeeper.Instance.GetRecordEntry(@event.Record);
-                recordEntry.MarkComplete(@event.ProgressState, false);
+                RecordKeeper.Instance.MarkRecordComplete(@event.Record, @event.ProgressState, false);
             };
         }
 
