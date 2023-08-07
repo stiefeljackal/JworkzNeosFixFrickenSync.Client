@@ -55,6 +55,9 @@
 	<Reference Include="BepuPhysics">
 		<HintPath>$(NeosPath)Neos_Data\Managed\BepuPhysics.dll</HintPath>
 	</Reference>
+	<Reference Include="ValueTuple">
+	  <HintPath>$(NeosPath)System.ValueTuple.dll</HintPath>
+	</Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
