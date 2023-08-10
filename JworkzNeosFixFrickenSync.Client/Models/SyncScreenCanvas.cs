@@ -10,7 +10,9 @@ using CodeX;
 using System.Reflection;
 using HarmonyLib;
 using JworkzNeosMod.Client.Utilities;
-using static FrooxEngine.TouchController;
+using RecordUtil = CloudX.Shared.RecordUtil;
+using System.Threading.Tasks;
+using NeosModLoader;
 
 namespace JworkzNeosMod.Client.Models
 {
@@ -73,6 +75,8 @@ namespace JworkzNeosMod.Client.Models
         private static readonly color STATE_COLOR_NORMAL = color.White;
 
         private static readonly color STATE_COLOR_SUCCESS = new color(0.4f, 1f, 0.4f, 1f);
+
+        private static readonly color STATE_COLOR_WARNING = new color(1f, 0.6f, 0, 1f);
 
         private static readonly color STATE_COLOR_FAILURE = color.Red;
 
@@ -144,7 +148,18 @@ namespace JworkzNeosMod.Client.Models
 
         private void UpdateSyncTaskViewModel(SyncTaskViewModel model, Record record, UploadProgressState state)
         {
-            var colorStatus = state.IsSuccessful.HasValue ? (state.IsSuccessful.Value ? STATE_COLOR_SUCCESS : STATE_COLOR_FAILURE) : STATE_COLOR_NORMAL;
+            color colorStatus;
+            switch (state.Indicator)
+            {
+                case UploadProgressIndicator.Success:
+                    colorStatus = STATE_COLOR_SUCCESS; break;
+                case UploadProgressIndicator.Failure:
+                    colorStatus = STATE_COLOR_FAILURE; break;
+                case UploadProgressIndicator.Canceled:
+                    colorStatus = STATE_COLOR_WARNING; break;
+                default:
+                    colorStatus = STATE_COLOR_NORMAL; break;
+            }
             model.UpdateInfo(record, colorStatus, state);
         }
 
@@ -235,7 +250,7 @@ namespace JworkzNeosMod.Client.Models
 
             AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnDeleteUnsyncedPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Force Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnForceSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
-            AddButton("Keep Both", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Keep Both", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnKeepBothSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Retry Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.CanTaskRetry, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
         }
 
@@ -447,7 +462,7 @@ namespace JworkzNeosMod.Client.Models
             }
         }
 
-        private void PrepareRecordAction(IButton button, Action<string> OnRecordReceived)
+        private void PrepareRecordAction(IButton button, Action<Record> OnRecordReceived)
         {
             var syncTaskListItemSlot = button.Slot.GetObjectRoot();
             var recordId = syncTaskListItemSlot.Name;
@@ -460,29 +475,39 @@ namespace JworkzNeosMod.Client.Models
 
             if (isSuccessOrProgress) { return; }
 
-            OnRecordReceived(recordId);
+            OnRecordReceived(recordEntry.Record);
         }
 
-        private void OnDeleteUnsyncedPressed(IButton button, ButtonEventData eventData)
+        private void OnDeleteUnsyncedPressed(IButton button, ButtonEventData _)
         {
             if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
 
-            PrepareRecordAction(button, async (recordId) => {
-                var recordKeeper = RecordKeeper.Instance;
-                var record = recordKeeper.RemoveRecord(recordId);
-                await Engine.Current.LocalDB.DeleteRecordAsync(record);
+            PrepareRecordAction(button, async (record) => await RemoveRecordFromRecordKeeper(record).ConfigureAwait(false));
+        }
 
-                recordKeeper.RemoveRecord(record);
+        private void OnForceSyncPressed(IButton button, ButtonEventData _)
+        {
+            if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
+
+            PrepareRecordAction(button, (record) => {
+                RecordKeeper.Instance.RestartRecord(record);
+                Engine.Current.RecordManager.EnqueueRecordSyncTask(record, true);
             });
         }
 
-        private void OnForceSyncPressed(IButton button, ButtonEventData eventData)
+        private void OnKeepBothSyncPressed(IButton button, ButtonEventData _)
         {
             if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
 
-            PrepareRecordAction(button, (recordId) => {
-                var record = RecordKeeper.Instance.RestartRecord(recordId);
-                Engine.Current.RecordManager.EnqueueRecordSyncTask(record, true);
+            PrepareRecordAction(button, async (record) => {
+                var clonedRecord = record.Clone<Record>();
+                clonedRecord.RecordId = RecordUtil.GenerateRecordID();
+                clonedRecord.LocalVersion = 0;
+                clonedRecord.GlobalVersion = 0;
+                clonedRecord.Name = $"{record.Name} (Sync Copy)";
+                NeosMod.Msg(clonedRecord.Name);
+                NeosMod.Msg(clonedRecord.AssetURI);
+                await Task.WhenAll(RemoveRecordFromRecordKeeper(record), Engine.Current.RecordManager.SaveRecord(clonedRecord)).ConfigureAwait(false);
             });
         }
 
@@ -490,9 +515,9 @@ namespace JworkzNeosMod.Client.Models
         {
             if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
 
-            PrepareRecordAction(button, (recordId) =>
+            PrepareRecordAction(button, (record) =>
             {
-                var record = RecordKeeper.Instance.RestartRecord(recordId);
+                RecordKeeper.Instance.RestartRecord(record);
                 Engine.Current.RecordManager.EnqueueRecordSyncTask(record);
             });
         }
@@ -506,7 +531,7 @@ namespace JworkzNeosMod.Client.Models
                 for (var i = 0; i < syncTaskViewKeys.Length; i++)
                 {
                     var key = syncTaskViewKeys[i];
-                    RemoveSyncTaskViewModel(key, (model) => model.IsTaskSuccessful);
+                    RemoveSyncTaskViewModel(key, (model) => model.IsTaskSuccessful || model.IsTaskCanceled);
                 }
 
                 EmptyListScreenSlot.ActiveSelf = !_syncTaskViewModels.Any();
@@ -520,7 +545,7 @@ namespace JworkzNeosMod.Client.Models
 
         private void OnSyncTaskRemoved(object sender, RecordKeeperEntryEventArgs entry)
         {
-            RemoveSyncTaskViewModel(entry.Record.RecordId);
+            UpdateSyncTaskViewModel(entry.Record, new UploadProgressState("Sync Task Removed", UploadProgressIndicator.Canceled));
             RefreshStatistics();
             RefreshInventoryScreen();
         }
@@ -533,6 +558,13 @@ namespace JworkzNeosMod.Client.Models
             {
                 RefreshInventoryScreen();
             }
+        }
+
+        private async Task RemoveRecordFromRecordKeeper(Record record)
+        {
+            var recordKeeper = RecordKeeper.Instance;
+            await Engine.Current.LocalDB.DeleteRecordAsync(record).ConfigureAwait(false);
+            recordKeeper.RemoveRecord(record);
         }
 
         private void RefreshInventoryScreen()

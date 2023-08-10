@@ -78,13 +78,13 @@ namespace JworkzNeosMod.Client.Services
             return recordEntry.Record;
         }
 
-        public void MarkRecordComplete(Record record, UploadProgressState state, bool isSuccessful = true) =>
-            MarkRecordComplete(record.RecordId, state, isSuccessful);
+        public void MarkRecordComplete(Record record, UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success) =>
+            MarkRecordComplete(record.RecordId, state, indicator);
 
-        public void MarkRecordComplete(string recordId, UploadProgressState state, bool isSuccessful = true)
+        public void MarkRecordComplete(string recordId, UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success)
         {
             var recordEntry = GetRecordEntry(recordId);
-            recordEntry.MarkComplete(state, isSuccessful);
+            recordEntry.MarkComplete(state, indicator);
             CompletedSyncs++;
 
             OnEntryMarkedCompleted(recordEntry);

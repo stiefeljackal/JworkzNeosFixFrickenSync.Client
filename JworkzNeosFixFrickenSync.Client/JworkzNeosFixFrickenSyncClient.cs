@@ -3,8 +3,7 @@ using HarmonyLib;
 using NeosModLoader;
 using JworkzNeosMod.Patches;
 using JworkzNeosMod.Client.Services;
-using FrooxEngine.LogiX.WorldModel;
-using JworkzNeosMod.Client.Patches;
+using JworkzNeosMod.Models;
 
 namespace JworkzNeosMod.Client
 {
@@ -44,7 +43,7 @@ namespace JworkzNeosMod.Client
 
             RecordUploadTaskBasePatch.UploadTaskFailure += (_, @event) =>
             {
-                RecordKeeper.Instance.MarkRecordComplete(@event.Record, @event.ProgressState, false);
+                RecordKeeper.Instance.MarkRecordComplete(@event.Record, @event.ProgressState, UploadProgressIndicator.Failure);
             };
         }
 

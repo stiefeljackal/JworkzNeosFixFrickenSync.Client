@@ -25,6 +25,8 @@ namespace JworkzNeosMod.Client.Models
 
         public Sync<bool> IsTaskFailure { get ; } = new Sync<bool>();
 
+        public Sync<bool> IsTaskCanceled { get; } = new Sync<bool>();
+
         public Sync<bool> IsTaskConflicting { get; } = new Sync<bool>();
 
         public Sync<bool> CanTaskRetry { get; } = new Sync<bool>();
@@ -46,6 +48,7 @@ namespace JworkzNeosMod.Client.Models
             TaskStage.Initialize(we.World, we);
             IsTaskSuccessful.Initialize(we.World, we);
             IsTaskFailure.Initialize(we.World, we);
+            IsTaskCanceled.Initialize(we.World, we);
             IsTaskConflicting.Initialize(we.World, we);
             CanTaskRetry.Initialize(we.World, we);
             Progress.Initialize(we.World, we);
@@ -63,12 +66,13 @@ namespace JworkzNeosMod.Client.Models
             ThumbnailUri.Value = string.IsNullOrEmpty(thumbnailUri) ? null : new Uri(record.ThumbnailURI);
             TaskStage.Value = state.Stage;
             
-            var isTaskSuccessFul = state.IsSuccessful.HasValue ? state.IsSuccessful.Value : false;
-            var isTaskFailure = state.IsSuccessful.HasValue ? !state.IsSuccessful.Value : false;
+            var isTaskSuccessFul = state.Indicator == UploadProgressIndicator.Success;
+            var isTaskFailure = state.Indicator == UploadProgressIndicator.Failure;
             var isTaskConflicting = state.Stage.Contains("Conflict"); 
 
             IsTaskSuccessful.Value = isTaskSuccessFul;
             IsTaskFailure.Value = isTaskFailure;
+            IsTaskCanceled.Value = state.Indicator == UploadProgressIndicator.Canceled;
             IsTaskConflicting.Value = isTaskFailure && isTaskConflicting;
             CanTaskRetry.Value = isTaskFailure && !isTaskConflicting;
             Progress.Value = state.Progress;
@@ -99,6 +103,7 @@ namespace JworkzNeosMod.Client.Models
             ThumbnailUri.Dispose();
             IsTaskSuccessful.Dispose();
             IsTaskFailure.Dispose();
+            IsTaskCanceled.Dispose();
             IsTaskConflicting.Dispose();
             CanTaskRetry.Dispose();
             Progress.Dispose();
