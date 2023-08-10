@@ -8,7 +8,8 @@ using JworkzNeosMod.Patches;
 using JworkzNeosMod.Client.Models;
 using JworkzNeosMod.Events;
 using JworkzNeosMod.Client.Services;
-using NeosModLoader;
+using System.Reflection;
+using System.Collections.Generic;
 
 namespace JworkzNeosMod.Client.Patches
 {
@@ -16,14 +17,16 @@ namespace JworkzNeosMod.Client.Patches
 
     public static class UserspaceScreensManagerPatch
     {
+        public const string SCREEN_NAME = "Sync";
+
         private static readonly Uri MAIN_ICON = NeosAssets.Common.Icons.Cloud;
 
         private static ConditionalWeakTable<Canvas, SyncScreenCanvas> _canvasSyncScreenPair =
             new ConditionalWeakTable<Canvas, SyncScreenCanvas>();
 
-        private static RadiantDashScreen _syncScreen;
+        public static RadiantDashScreen SyncScreen { get; private set; }
 
-        private static SyncScreenCanvas _syncScreenCanvas;
+        public static SyncScreenCanvas SyncScreenCanvas { get; private set; }
 
         [HarmonyPostfix]
         [HarmonyPatch("SetupDefaults")]
@@ -45,23 +48,24 @@ namespace JworkzNeosMod.Client.Patches
 
             var dash = userspaceScreenManager.Slot.GetComponentInParents<RadiantDash>();
 
-            if (_syncScreen != null)
+            if (SyncScreen != null)
             {
-                _syncScreen.Destroy();
-                _syncScreen.Dispose();
-                _syncScreenCanvas?.Dispose();
+                SyncScreen.Destroy();
+                SyncScreen.Dispose();
+                SyncScreenCanvas?.Dispose();
             }
 
-            _syncScreen = dash.AttachScreen("Sync", SyncScreenCanvas.BTN_COLOR, MAIN_ICON);
-            var screenCanvas = _syncScreen.ScreenCanvas;
+            SyncScreen = dash.AttachScreen("Sync", SyncScreenCanvas.BTN_COLOR, MAIN_ICON);
 
-            _syncScreenCanvas = new SyncScreenCanvas(screenCanvas);
-            _canvasSyncScreenPair.Add(screenCanvas, _syncScreenCanvas);
-            var screenSlot = _syncScreen.Slot;
+            var screenCanvas = SyncScreen.ScreenCanvas;
+
+            SyncScreenCanvas = new SyncScreenCanvas(screenCanvas);
+            _canvasSyncScreenPair.Add(screenCanvas, SyncScreenCanvas);
+            var screenSlot = SyncScreen.Slot;
             screenSlot.OrderOffset = 55;
             screenSlot.PersistentSelf = false;
 
-            _syncScreenCanvas.InitUI();
+            SyncScreenCanvas.InitUI();
          
 
             foreach(var entry in RecordKeeper.Instance.Entries)
@@ -77,17 +81,17 @@ namespace JworkzNeosMod.Client.Patches
 
         private static void OnUploadTaskUpdate(object _, UploadTaskEventArgsBase @event)
         {
-            if (_syncScreenCanvas == null || @event.Record.RecordId == "R-Settings") { return; }
+            if (SyncScreenCanvas == null || @event.Record.RecordId == "R-Settings") { return; }
 
             Userspace.UserspaceWorld.RunSynchronously(() =>
             {
-                if (_syncScreenCanvas.HasSyncTaskViewModel(@event.Record))
+                if (SyncScreenCanvas.HasSyncTaskViewModel(@event.Record))
                 {
-                    _syncScreenCanvas.UpdateSyncTaskViewModel(@event.Record, @event.ProgressState);
+                    SyncScreenCanvas.UpdateSyncTaskViewModel(@event.Record, @event.ProgressState);
                 }
                 else
                 {
-                    _syncScreenCanvas.CreateSyncTaskViewModel(@event.Record, @event.ProgressState);
+                    SyncScreenCanvas.CreateSyncTaskViewModel(@event.Record, @event.ProgressState);
                 }
             }, true);
         }

@@ -88,23 +88,25 @@ namespace JworkzNeosMod.Client.Models
 
         private Canvas ScreenCanvas { get; }
 
-        public Slot HeaderSlot { get; private set; }
+        private Slot HeaderSlot { get; set; }
 
-        public Slot BodySlot { get; private set; }
+        private Slot BodySlot { get; set; }
 
-        public Slot EmptyListScreenSlot { get; private set; }
+        private Slot EmptyListScreenSlot { get; set; }
 
-        public Slot SyncListSlot { get; private set; }
+        private Slot SyncListSlot { get; set; }
 
-        private Sync<int> TotalSyncsCompleted = new Sync<int>();
+        private readonly Sync<int> TotalSyncsCompleted = new Sync<int>();
 
-        private Sync<int> FailedSyncsCount = new Sync<int>();
+        private readonly Sync<int> FailedSyncsCount = new Sync<int>();
+
+        public readonly Sync<bool> HasFailedSyncs = new Sync<bool>();
 
         public UIBuilder UIBuilder { get; }
 
-        private ConcurrentDictionary<string, SyncTaskViewModel> _syncTaskViewModels = new ConcurrentDictionary<string, SyncTaskViewModel>();
+        private readonly ConcurrentDictionary<string, SyncTaskViewModel> _syncTaskViewModels = new ConcurrentDictionary<string, SyncTaskViewModel>();
 
-        private ConcurrentDictionary<string, Slot> _syncTaskSlots = new ConcurrentDictionary<string, Slot>();
+        private readonly ConcurrentDictionary<string, Slot> _syncTaskSlots = new ConcurrentDictionary<string, Slot>();
 
         private static readonly MethodInfo RecordManagerLastFailReasonSetter = AccessTools.PropertySetter(typeof(RecordManager), nameof(RecordManager.LastFailReason));
 
@@ -116,6 +118,7 @@ namespace JworkzNeosMod.Client.Models
 
             TotalSyncsCompleted.Initialize(screenCanvas.World, screenCanvas);
             FailedSyncsCount.Initialize(screenCanvas.World, screenCanvas);
+            HasFailedSyncs.Initialize(screenCanvas.World, screenCanvas);
 
             RecordKeeper.Instance.EntryMarkedCompleted += OnSyncTaskMarkedCompleted;
             RecordKeeper.Instance.EntryRestarted += OnSyncTaskRestarted;
@@ -467,6 +470,7 @@ namespace JworkzNeosMod.Client.Models
             var recordKeeper = RecordKeeper.Instance;
             TotalSyncsCompleted.Value = recordKeeper.CompletedSyncs;
             FailedSyncsCount.Value = recordKeeper.CurrentFailedSyncs;
+            HasFailedSyncs.Value = recordKeeper.CurrentFailedSyncs > 0;
 
             var recordManager = Engine.Current.RecordManager;
             if (!string.IsNullOrEmpty(recordManager.LastFailReason) && recordKeeper.CurrentFailedSyncs <= 0) {
