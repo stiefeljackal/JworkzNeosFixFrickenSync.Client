@@ -29,6 +29,10 @@ namespace JworkzNeosMod.Client.Models
         private const byte LIST_ITEM_IMAGE_WIDTH = 175;
 
         private const short LIST_ITEM_MIN_WIDTH = 1670;
+
+        private static readonly float2 LIST_ITEM_ICON_IMAGE_ANCHOR_MIN = new float2(0.1f, 0.1f);
+
+        private static readonly float2 LIST_ITEM_ICON_IMAGE_ANCHOR_MAX = new float2(0.9f, 0.9f);
        
         private static readonly float2 LIST_ANCHOR_MAX = new float2(1, 0.95f);
 
@@ -289,16 +293,24 @@ namespace JworkzNeosMod.Client.Models
             bgImageSlot.Name = "Image Background";
             UIBuilder.NestInto(bgImageSlot);
 
-            if (model.TaskType == SyncTaskType.Folder)
+            switch (model.TaskType)
             {
-                UIBuilder.Image(FOLDER_COLOR);
-                var folderTextUi = UIBuilder.Text("");
-                folderTextUi.Content.DriveFrom(model.RecordName);
-                folderTextUi.Color.Value = color.Black;
-            }
-            else
-            {
-                UIBuilder.Image(model.ThumbnailUri);
+                case SyncTaskType.Folder:
+                    UIBuilder.Image(FOLDER_COLOR);
+                    var folderTextUi = UIBuilder.Text("");
+                    folderTextUi.Content.DriveFrom(model.RecordName);
+                    folderTextUi.Color.Value = color.Black;
+                    break;
+                case SyncTaskType.Audio:
+                    var iconImageUi = UIBuilder.Image(NeosAssets.Common.Icons.Note);
+                    var iconImageRectTransform = iconImageUi.Slot.GetComponent<RectTransform>();
+                    iconImageRectTransform.AnchorMin.Value = LIST_ITEM_ICON_IMAGE_ANCHOR_MIN;
+                    iconImageRectTransform.AnchorMax.Value = LIST_ITEM_ICON_IMAGE_ANCHOR_MAX;
+                    break;
+                default:
+                    UIBuilder.Image(model.ThumbnailUri);
+                    break;
+
             }
 
             UIBuilder.NestOut();
