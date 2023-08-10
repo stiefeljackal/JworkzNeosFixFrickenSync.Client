@@ -10,6 +10,7 @@ using CodeX;
 using System.Reflection;
 using HarmonyLib;
 using JworkzNeosMod.Client.Utilities;
+using static FrooxEngine.TouchController;
 
 namespace JworkzNeosMod.Client.Models
 {
@@ -110,6 +111,8 @@ namespace JworkzNeosMod.Client.Models
 
             RecordKeeper.Instance.EntryMarkedCompleted += OnSyncTaskMarkedCompleted;
             RecordKeeper.Instance.EntryRestarted += OnSyncTaskRestarted;
+            RecordKeeper.Instance.EntryRemoved += OnSyncTaskRemoved;
+
             Userspace.UserspaceWorld.RunSynchronously(RefreshStatistics);
         }
 
@@ -143,6 +146,27 @@ namespace JworkzNeosMod.Client.Models
         {
             var colorStatus = state.IsSuccessful.HasValue ? (state.IsSuccessful.Value ? STATE_COLOR_SUCCESS : STATE_COLOR_FAILURE) : STATE_COLOR_NORMAL;
             model.UpdateInfo(record, colorStatus, state);
+        }
+
+        private bool RemoveSyncTaskViewModel(string recordId, Predicate<SyncTaskViewModel> predicate = null)
+        {
+            var hasModel = _syncTaskViewModels.TryGetValue(recordId, out SyncTaskViewModel model);
+            
+            if (!hasModel) { return false; }
+
+            var hasSlot = _syncTaskSlots.TryGetValue(recordId, out var slot);
+            var isPredicateTrue = predicate == null ? true : predicate(model);
+
+            var isRemovable = hasSlot && isPredicateTrue;
+
+            if (isRemovable)
+            {
+                slot.Destroy();
+                model.Dispose();
+                _syncTaskViewModels.TryRemove(recordId, out var _);
+            }
+
+            return isRemovable;
         }
 
         public void InitUI()
@@ -209,7 +233,7 @@ namespace JworkzNeosMod.Client.Models
 
             UIBuilder.NestInto(bodySlot);
 
-            AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnDeleteUnsyncedPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Force Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnForceSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Keep Both", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Retry Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.CanTaskRetry, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
@@ -439,6 +463,19 @@ namespace JworkzNeosMod.Client.Models
             OnRecordReceived(recordId);
         }
 
+        private void OnDeleteUnsyncedPressed(IButton button, ButtonEventData eventData)
+        {
+            if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
+
+            PrepareRecordAction(button, async (recordId) => {
+                var recordKeeper = RecordKeeper.Instance;
+                var record = recordKeeper.RemoveRecord(recordId);
+                await Engine.Current.LocalDB.DeleteRecordAsync(record);
+
+                recordKeeper.RemoveRecord(record);
+            });
+        }
+
         private void OnForceSyncPressed(IButton button, ButtonEventData eventData)
         {
             if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
@@ -468,22 +505,8 @@ namespace JworkzNeosMod.Client.Models
 
                 for (var i = 0; i < syncTaskViewKeys.Length; i++)
                 {
-                    SyncTaskViewModel model;
                     var key = syncTaskViewKeys[i];
-                    var hasModel = _syncTaskViewModels.TryGetValue(key, out model);
-
-                    if (!hasModel) { continue; }    
-
-                    var recordId = model.RecordId.Value;
-                    var hasSlot = _syncTaskSlots.TryGetValue(recordId, out var slot);
-                    var isSuccessful = model.IsTaskSuccessful;
-
-                    if (hasSlot && isSuccessful)
-                    {
-                        slot.Destroy();
-                        model.Dispose();
-                        _syncTaskViewModels.TryRemove(key, out var _);
-                    }
+                    RemoveSyncTaskViewModel(key, (model) => model.IsTaskSuccessful);
                 }
 
                 EmptyListScreenSlot.ActiveSelf = !_syncTaskViewModels.Any();
@@ -495,28 +518,38 @@ namespace JworkzNeosMod.Client.Models
             UpdateSyncTaskViewModel(entry.Record, new UploadProgressState("Restarting"));
         }
 
+        private void OnSyncTaskRemoved(object sender, RecordKeeperEntryEventArgs entry)
+        {
+            RemoveSyncTaskViewModel(entry.Record.RecordId);
+            RefreshStatistics();
+            RefreshInventoryScreen();
+        }
+
         private void OnSyncTaskMarkedCompleted(object sender, RecordKeeperEntryEventArgs e)
         {
             Userspace.UserspaceWorld.RunSynchronously(RefreshStatistics);
 
             if (e.IsSuccessfulSync && e.PreviousFailedAttempts > 0)
             {
-                Userspace.UserspaceWorld.RunSynchronously(() => {
-                    var inventory = InventoryBrowser.CurrentUserspaceInventory;
-                    if (inventory == null) { return; }
-
-                    var currentDirectory = inventory.CurrentDirectory;
-                    var record = e.Record;
-
-                    inventory.Open(null, SlideSwapRegion.Slide.None);
-                });
+                RefreshInventoryScreen();
             }
+        }
+
+        private void RefreshInventoryScreen()
+        {
+            Userspace.UserspaceWorld.RunSynchronously(() => {
+                var inventory = InventoryBrowser.CurrentUserspaceInventory;
+                if (inventory == null) { return; }
+
+                inventory.Open(null, SlideSwapRegion.Slide.None);
+            });
         }
 
         public void Dispose()
         {
             RecordKeeper.Instance.EntryMarkedCompleted -= OnSyncTaskMarkedCompleted;
             RecordKeeper.Instance.EntryRestarted -= OnSyncTaskRestarted;
+            RecordKeeper.Instance.EntryRemoved -= OnSyncTaskRemoved;
 
             ScreenCanvas?.Destroy();
             ScreenCanvas?.Dispose();

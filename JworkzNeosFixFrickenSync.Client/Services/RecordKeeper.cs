@@ -27,6 +27,8 @@ namespace JworkzNeosMod.Client.Services
 
         public event EventHandler<RecordKeeperEntryEventArgs> EntryRestarted;
 
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryRemoved;
+
         public void AddRecord(Record record)
         {
             if (HasRecord(record)) {  return; }
@@ -55,8 +57,12 @@ namespace JworkzNeosMod.Client.Services
         {
             if (!HasRecord(recordId)) { return null; }
 
-            _recordKeeperEntries.TryRemove(recordId, out var recordKeeperEntry);
-        
+            var hasRemoved = _recordKeeperEntries.TryRemove(recordId, out var recordKeeperEntry);
+
+            if (!hasRemoved) { return null; }
+
+            OnEntryRemoved(recordKeeperEntry);
+
             return recordKeeperEntry.Record;
         }
 
@@ -91,7 +97,12 @@ namespace JworkzNeosMod.Client.Services
 
         private void OnEntryRestarted(RecordKeeperEntry entry)
         {
-            EntryRestarted.Invoke(this, new RecordKeeperEntryEventArgs(entry));
+            EntryRestarted?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
+        }
+
+        private void OnEntryRemoved(RecordKeeperEntry entry)
+        {
+            EntryRemoved?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
         }
     }
 }
