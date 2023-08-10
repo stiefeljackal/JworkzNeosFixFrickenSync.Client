@@ -16,6 +16,8 @@ namespace JworkzNeosMod.Client.Models
 
         public UploadProgressState UploadProgress { get; private set; }
 
+        public ushort PreviousFailedAttempts { get; private set; }
+
         public RecordKeeperEntry(Record record, UploadProgressState? state = null)
         {
             Record = record;
@@ -37,11 +39,16 @@ namespace JworkzNeosMod.Client.Models
             IsSuccessfulSync = null;
         }
 
-        public void MarkComplete(UploadProgressState state, bool isSuccessful = true)
+        public void MarkComplete(UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success)
         {
-            UploadProgress = new UploadProgressState(state.Stage, isSuccessful, 1f);
+            UploadProgress = new UploadProgressState(state.Stage, indicator, 1f);
             SyncCompletedDate = DateTimeOffset.Now;
-            IsSuccessfulSync = isSuccessful;
+            IsSuccessfulSync = indicator == UploadProgressIndicator.Success;
+
+            if (indicator == UploadProgressIndicator.Failure)
+            {
+                PreviousFailedAttempts++;
+            }
         }
 
         public void UpdateUploadProgressState(string stage, bool? isSuccessful = null)
@@ -61,7 +68,7 @@ namespace JworkzNeosMod.Client.Models
 
         public void UpdateUploadProgressState(UploadProgressState state)
         {
-            UploadProgress = new UploadProgressState(state.Stage, state.IsSuccessful, state.Progress);
+            UploadProgress = new UploadProgressState(state.Stage, state.Indicator, state.Progress);
         }
 
         public override int GetHashCode() => RecordId.GetHashCode();

@@ -23,7 +23,11 @@ namespace JworkzNeosMod.Client.Services
 
         public int CurrentSuccessfulSyncs => _recordKeeperEntries.Values.Count(r => r.IsSuccessfulSync.HasValue && r.IsSuccessfulSync.Value);
 
-        public event EventHandler<RecordKeeperEntry> EntryMarkedCompleted;
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryMarkedCompleted;
+
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryRestarted;
+
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryRemoved;
 
         public void AddRecord(Record record)
         {
@@ -53,15 +57,34 @@ namespace JworkzNeosMod.Client.Services
         {
             if (!HasRecord(recordId)) { return null; }
 
-            _recordKeeperEntries.TryRemove(recordId, out var recordKeeperEntry);
-        
+            var hasRemoved = _recordKeeperEntries.TryRemove(recordId, out var recordKeeperEntry);
+
+            if (!hasRemoved) { return null; }
+
+            OnEntryRemoved(recordKeeperEntry);
+
             return recordKeeperEntry.Record;
         }
 
-        public void MarkRecordComplete(Record record, UploadProgressState state, bool isSuccessful = true)
+        public Record RestartRecord(Record record) => RestartRecord(record.RecordId);
+
+        public Record RestartRecord(string recordId)
         {
-            var recordEntry = GetRecordEntry(record);
-            recordEntry.MarkComplete(state, isSuccessful);
+            var recordEntry = GetRecordEntry(recordId);
+            recordEntry.MarkStart();
+
+            OnEntryRestarted(recordEntry);
+
+            return recordEntry.Record;
+        }
+
+        public void MarkRecordComplete(Record record, UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success) =>
+            MarkRecordComplete(record.RecordId, state, indicator);
+
+        public void MarkRecordComplete(string recordId, UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success)
+        {
+            var recordEntry = GetRecordEntry(recordId);
+            recordEntry.MarkComplete(state, indicator);
             CompletedSyncs++;
 
             OnEntryMarkedCompleted(recordEntry);
@@ -69,7 +92,17 @@ namespace JworkzNeosMod.Client.Services
 
         private void OnEntryMarkedCompleted(RecordKeeperEntry entry)
         {
-            EntryMarkedCompleted?.Invoke(this, entry);
+            EntryMarkedCompleted?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
+        }
+
+        private void OnEntryRestarted(RecordKeeperEntry entry)
+        {
+            EntryRestarted?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
+        }
+
+        private void OnEntryRemoved(RecordKeeperEntry entry)
+        {
+            EntryRemoved?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
         }
     }
 }

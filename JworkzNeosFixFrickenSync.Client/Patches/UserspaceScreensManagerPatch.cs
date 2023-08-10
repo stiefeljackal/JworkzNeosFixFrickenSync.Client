@@ -49,6 +49,7 @@ namespace JworkzNeosMod.Client.Patches
             {
                 _syncScreen.Destroy();
                 _syncScreen.Dispose();
+                _syncScreenCanvas?.Dispose();
             }
 
             _syncScreen = dash.AttachScreen("Sync", SyncScreenCanvas.BTN_COLOR, MAIN_ICON);
