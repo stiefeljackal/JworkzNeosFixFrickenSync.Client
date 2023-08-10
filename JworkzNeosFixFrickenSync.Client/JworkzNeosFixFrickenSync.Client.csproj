@@ -21,11 +21,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Abstract\**" />
-    <Compile Remove="Extensions\**" />
     <EmbeddedResource Remove="Abstract\**" />
-    <EmbeddedResource Remove="Extensions\**" />
     <None Remove="Abstract\**" />
-    <None Remove="Extensions\**" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\JworkzNeosFixFrickenSync\JworkzNeosFixFrickenSync\JworkzNeosFixFrickenSync.csproj" />
@@ -42,6 +39,9 @@
     <Reference Include="BaseX">
       <HintPath>$(NeosPath)Neos_Data\Managed\BaseX.dll</HintPath>
     </Reference>
+	<Reference Include="CodeX">
+	  <HintPath>$(NeosPath)Neos_Data\Managed\CodeX.dll</HintPath>
+	</Reference>
 	<Reference Include="CloudX.Shared">
 		<HintPath>$(NeosPath)Neos_Data\Managed\CloudX.Shared.dll</HintPath>
 	</Reference>

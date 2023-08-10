@@ -20,5 +20,14 @@ namespace JworkzNeosMod.Client.Utilities
 
             return rawQueue?.ToList() ?? new EngineRecordUploadTask[0].AsEnumerable();
         }
+
+        public static void EnqueueRecordSyncTask(this RecordManager recordManager, Record record, bool forceConflictSync = false)
+        {
+            var recordsQueue = (SpinQueue<EngineRecordUploadTask>)_recordsToSyncField.GetValue(recordManager);
+            recordsQueue.Enqueue(new EngineRecordUploadTask(Engine.Current, record)
+            {
+                ForceConflictSync = forceConflictSync
+            });
+        }
     }
 }

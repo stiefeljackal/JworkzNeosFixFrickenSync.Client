@@ -23,7 +23,9 @@ namespace JworkzNeosMod.Client.Services
 
         public int CurrentSuccessfulSyncs => _recordKeeperEntries.Values.Count(r => r.IsSuccessfulSync.HasValue && r.IsSuccessfulSync.Value);
 
-        public event EventHandler<RecordKeeperEntry> EntryMarkedCompleted;
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryMarkedCompleted;
+
+        public event EventHandler<RecordKeeperEntryEventArgs> EntryRestarted;
 
         public void AddRecord(Record record)
         {
@@ -58,9 +60,24 @@ namespace JworkzNeosMod.Client.Services
             return recordKeeperEntry.Record;
         }
 
-        public void MarkRecordComplete(Record record, UploadProgressState state, bool isSuccessful = true)
+        public Record RestartRecord(Record record) => RestartRecord(record.RecordId);
+
+        public Record RestartRecord(string recordId)
         {
-            var recordEntry = GetRecordEntry(record);
+            var recordEntry = GetRecordEntry(recordId);
+            recordEntry.MarkStart();
+
+            OnEntryRestarted(recordEntry);
+
+            return recordEntry.Record;
+        }
+
+        public void MarkRecordComplete(Record record, UploadProgressState state, bool isSuccessful = true) =>
+            MarkRecordComplete(record.RecordId, state, isSuccessful);
+
+        public void MarkRecordComplete(string recordId, UploadProgressState state, bool isSuccessful = true)
+        {
+            var recordEntry = GetRecordEntry(recordId);
             recordEntry.MarkComplete(state, isSuccessful);
             CompletedSyncs++;
 
@@ -69,7 +86,12 @@ namespace JworkzNeosMod.Client.Services
 
         private void OnEntryMarkedCompleted(RecordKeeperEntry entry)
         {
-            EntryMarkedCompleted?.Invoke(this, entry);
+            EntryMarkedCompleted?.Invoke(this, new RecordKeeperEntryEventArgs(entry));
+        }
+
+        private void OnEntryRestarted(RecordKeeperEntry entry)
+        {
+            EntryRestarted.Invoke(this, new RecordKeeperEntryEventArgs(entry));
         }
     }
 }

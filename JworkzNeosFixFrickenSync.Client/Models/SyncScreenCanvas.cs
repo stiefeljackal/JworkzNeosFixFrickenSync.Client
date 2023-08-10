@@ -5,8 +5,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using JworkzNeosMod.Models;
-using FrooxEngine.LogiX.WorldModel;
 using JworkzNeosMod.Client.Services;
+using CodeX;
+using System.Reflection;
+using HarmonyLib;
+using JworkzNeosMod.Client.Utilities;
 
 namespace JworkzNeosMod.Client.Models
 {
@@ -14,17 +17,29 @@ namespace JworkzNeosMod.Client.Models
     {
         public static readonly color BTN_COLOR = new color(0.314f, 0.784f, 0.471f);
 
-        private const int LIST_PADDING_SIZE = 25;
+        private const byte LIST_PADDING_SIZE = 25;
 
         private const short LIST_ORDER_OFFSET = 1000;
 
-        private const int LIST_ITEM_HEIGHT = 150;
+        private const byte LIST_ITEM_HEIGHT = 150;
 
-        private const int LIST_ITEM_MIN_WIDTH = 1670;
+        private const byte LIST_ITEM_IMAGE_WIDTH = 175;
+
+        private const short LIST_ITEM_MIN_WIDTH = 1670;
        
         private static readonly float2 LIST_ANCHOR_MAX = new float2(1, 0.95f);
 
         private const byte LIST_ITEM_THREE_INFO_LINE_HEIGHT = 34;
+
+        private const byte LIST_ITEM_BODY_SPACING_PADDING = 10;
+
+        private const float LIST_ITEM_BODY_TEXT_CONTENT_FLEXIBLE_WIDTH = 0.65f;
+
+        private const byte LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE = 30;
+
+        private const byte LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH = 185;
+
+        private const string LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT = "Really?";
 
         private static readonly float2 LIST_HEADER_ANCHOR_MIN = new float2(0, 0.95f);
 
@@ -82,6 +97,8 @@ namespace JworkzNeosMod.Client.Models
 
         private ConcurrentDictionary<string, Slot> _syncTaskSlots = new ConcurrentDictionary<string, Slot>();
 
+        private static readonly MethodInfo RecordManagerLastFailReasonSetter = AccessTools.PropertySetter(typeof(RecordManager), nameof(RecordManager.LastFailReason));
+
         public SyncScreenCanvas(Canvas screenCanvas)
         {
             ScreenCanvas = screenCanvas;
@@ -89,11 +106,11 @@ namespace JworkzNeosMod.Client.Models
             RadiantUI_Constants.SetupDefaultStyle(UIBuilder);
 
             TotalSyncsCompleted.Initialize(screenCanvas.World, screenCanvas);
-            TotalSyncsCompleted.Value = 0;
-
             FailedSyncsCount.Initialize(screenCanvas.World, screenCanvas);
 
             RecordKeeper.Instance.EntryMarkedCompleted += OnSyncTaskMarkedCompleted;
+            RecordKeeper.Instance.EntryRestarted += OnSyncTaskRestarted;
+            Userspace.UserspaceWorld.RunSynchronously(RefreshStatistics);
         }
 
         public bool HasSyncTaskViewModel(Record record)
@@ -109,7 +126,7 @@ namespace JworkzNeosMod.Client.Models
             _syncTaskViewModels.TryAdd(record.RecordId, model);
 
             UpdateSyncTaskViewModel(model, record, state);
-            var syncTaskSlot = AddSyncTaskLineItem(model, state);
+            var syncTaskSlot = AddSyncTaskLineItem(record.RecordId, model, state);
             _syncTaskSlots.TryAdd(record.RecordId, syncTaskSlot);
         }
 
@@ -136,7 +153,7 @@ namespace JworkzNeosMod.Client.Models
             AddNoItemsMessageScreen();
         }
 
-        private Slot AddSyncTaskLineItem(SyncTaskViewModel model, UploadProgressState state)
+        private Slot AddSyncTaskLineItem(string recordId, SyncTaskViewModel model, UploadProgressState state)
         {
 
             EmptyListScreenSlot.ActiveSelf = false;
@@ -146,9 +163,10 @@ namespace JworkzNeosMod.Client.Models
             var firstChild = SyncListSlot.Children.FirstOrDefault();
 
             var listItemSlot = UIBuilder.HorizontalLayout(childAlignment: Alignment.MiddleLeft).Slot;
-            listItemSlot.Name = "Sync Row Item";
+            listItemSlot.Name = recordId;
             listItemSlot.OrderOffset = firstChild != null ? firstChild.OrderOffset - 1 : 0;
             var listItemLayoutElementComponent = listItemSlot.AttachComponent<LayoutElement>();
+            listItemSlot.AttachComponent<ObjectRoot>();
             listItemLayoutElementComponent.MinHeight.Value = listItemLayoutElementComponent.PreferredHeight.Value = LIST_ITEM_HEIGHT;
             UIBuilder.NestInto(listItemSlot);
 
@@ -160,13 +178,61 @@ namespace JworkzNeosMod.Client.Models
             listItemInfoContentSlot.AttachComponent<LayoutElement>().MinWidth.Value = LIST_ITEM_MIN_WIDTH;
             UIBuilder.NestInto(listItemInfoContentSlot);
 
-            AddTextUISlot("Sync Record Name", TITLE_FONT_SIZE, color.White, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskTitle);
-            AddTextUISlot("Sync Record Path", SUBTITLE_FONT_SIZE, LIST_ITEM_TRANSPARENT_COLOR, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskInventoryPath);
-            AddTextUISlot("Sync Record Stage", PROGRESS_STAGE_FONT_SIZE, model.StatusColor, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskStage);
+            AddSyncTaskLineItemBody(model);
 
+            UIBuilder.NestInto(listItemInfoContentSlot);
+
+            AddTextUISlot("Sync Record Stage", PROGRESS_STAGE_FONT_SIZE, model.StatusColor, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskStage);
             AddProgressBar(model.StatusColor, model.Progress);
 
             return listItemSlot;
+        }
+
+        private void AddSyncTaskLineItemBody(SyncTaskViewModel model)
+        {
+            var bodyUi = UIBuilder.HorizontalLayout(LIST_ITEM_BODY_SPACING_PADDING, childAlignment: Alignment.MiddleCenter);
+            bodyUi.PaddingTop.Value = LIST_ITEM_BODY_SPACING_PADDING;
+            bodyUi.PaddingBottom.Value = LIST_ITEM_BODY_SPACING_PADDING;
+
+            var bodySlot = bodyUi.Slot;
+            bodySlot.Name = "Sync Record Content Body";
+            UIBuilder.NestInto(bodySlot);
+
+            var bodyTextUi = UIBuilder.VerticalLayout(childAlignment: Alignment.MiddleCenter);
+            var bodyTextSlot = bodyTextUi.Slot;
+            bodyTextSlot.Name = "Sync Record Content Body - Text";
+            bodyTextSlot.GetComponent<LayoutElement>().FlexibleWidth.Value = LIST_ITEM_BODY_TEXT_CONTENT_FLEXIBLE_WIDTH;
+            UIBuilder.NestInto(bodyTextSlot);
+
+            AddTextUISlot("Sync Record Name", TITLE_FONT_SIZE, color.White, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskTitle, vertAlignnment: TextVerticalAlignment.Top);
+            AddTextUISlot("Sync Record Path", SUBTITLE_FONT_SIZE, LIST_ITEM_TRANSPARENT_COLOR, LIST_ITEM_THREE_INFO_LINE_HEIGHT, model.TaskInventoryPath);
+
+            UIBuilder.NestInto(bodySlot);
+
+            AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Force Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnForceSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Keep Both", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Retry Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.CanTaskRetry, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+        }
+
+        private void AddButton(string btnText, byte fontSize, ButtonEventHandler onBtnPress, Sync<bool> enabledBoolSync = null, color? btnBgColor = null, color? btnFontColor = null, float preferredWidth = -1f)
+        {
+            var btnUi = UIBuilder.Button(btnText, btnBgColor ?? BTN_COLOR);
+            btnUi.LocalPressed += onBtnPress;
+
+            var btnUiText = btnUi.Slot.GetComponentInChildren<Text>();
+
+            btnUiText.Size.Value = fontSize;
+            btnUiText.Color.Value = btnFontColor ?? color.Black;
+
+            var btnSlot = btnUi.Slot;
+            btnSlot.Name = $"{btnText} Btn";
+            btnSlot.GetComponent<LayoutElement>().PreferredWidth.Value = preferredWidth;
+
+            if (enabledBoolSync != null)
+            {
+                btnUi.Slot.ActiveSelf_Field.DriveFrom(enabledBoolSync);
+            }
         }
 
         private void AddSyncTaskLineItemImage(SyncTaskViewModel model)
@@ -175,7 +241,7 @@ namespace JworkzNeosMod.Client.Models
             imageLayout.PaddingRight.Value = LIST_PADDING_SIZE;
             var imageLayoutSlot = imageLayout.Slot;
             imageLayoutSlot.Name = "Sync Record Image";
-            imageLayoutSlot.GetComponent<LayoutElement>().MinWidth.Value = LIST_ITEM_HEIGHT;
+            imageLayoutSlot.GetComponent<LayoutElement>().MinWidth.Value = LIST_ITEM_IMAGE_WIDTH;
             UIBuilder.NestInto(imageLayoutSlot);
 
             var bgImageUi = UIBuilder.Image();
@@ -184,7 +250,7 @@ namespace JworkzNeosMod.Client.Models
             bgImageSlot.Name = "Image Background";
             UIBuilder.NestInto(bgImageSlot);
 
-            if (model.IsFolder)
+            if (model.TaskType == SyncTaskType.Folder)
             {
                 UIBuilder.Image(FOLDER_COLOR);
                 var folderTextUi = UIBuilder.Text("");
@@ -200,10 +266,12 @@ namespace JworkzNeosMod.Client.Models
             UIBuilder.NestOut();
         }
 
-        private Text AddTextUISlot(string slotName, float fontSize, color fontColor, int preferredHeight, Sync<string> syncField = null)
+        private Text AddTextUISlot(string slotName, float fontSize, color fontColor, int preferredHeight, Sync<string> syncField = null, TextHorizontalAlignment horzAlignment = TextHorizontalAlignment.Left, TextVerticalAlignment vertAlignnment = TextVerticalAlignment.Middle)
         {
             var textUi = AddTextUISlot(slotName, fontSize, preferredHeight, syncField);
             textUi.Color.Value = fontColor;
+            textUi.HorizontalAlign.Value = horzAlignment;
+            textUi.VerticalAlign.Value = vertAlignnment;
             UIBuilder.NestOut();
 
             return textUi;
@@ -248,8 +316,11 @@ namespace JworkzNeosMod.Client.Models
             UIBuilder.NestInto(progressBarSlot);
 
             var progressBarFillUi = UIBuilder.Image();
-            progressBarFillUi.Tint.DriveFrom(statusColorField);
             var progressBarFillSlot = progressBarFillUi.Slot;
+            var progressBarFillColorSmoothValueComponent = progressBarFillSlot.AttachComponent<SmoothValue<color>>();
+            progressBarFillColorSmoothValueComponent.TargetValue.DriveFrom(statusColorField);
+            progressBarFillColorSmoothValueComponent.Value.Target = progressBarFillUi.Tint;
+
             progressBarSlot.Name = "Fill Bar";
             var progressBarFillRectTransform = progressBarFillSlot.GetComponent<RectTransform>();
             var progressBarComponent = progressBarFillSlot.AttachComponent<ProgressBar>();
@@ -304,15 +375,7 @@ namespace JworkzNeosMod.Client.Models
 
             UIBuilder.NestInto(headerBtnsUi.Slot);
 
-            var btnUi = UIBuilder.Button("Clear Synced Activity", BTN_COLOR);
-            btnUi.LocalPressed += OnClearHistoryPressed;
-
-            var btnUiText = btnUi.Slot.GetComponentInChildren<Text>();
-
-            btnUiText.Size.Value = LIST_HEADER_BTN_FONT_SIZE;
-            btnUiText.Color.Value = color.Black;
-            btnUi.Slot.Name = "Clear Synced Activity Btn";
-            btnUi.Slot.GetComponent<LayoutElement>().PreferredWidth.Value = LIST_HEADER_BTN_PREFERREDWIDTH;
+            AddButton("Clear Synced Activity", LIST_HEADER_BTN_FONT_SIZE, OnClearHistoryPressed, preferredWidth: LIST_HEADER_BTN_PREFERREDWIDTH);
         }
 
         private void AddHeaderStatistic<T>(string headingText, Sync<T> syncField, string valueFormat) where T : struct
@@ -348,40 +411,113 @@ namespace JworkzNeosMod.Client.Models
             SyncListSlot = syncListSlot;
         }
 
+        private void RefreshStatistics()
+        {
+            var recordKeeper = RecordKeeper.Instance;
+            TotalSyncsCompleted.Value = recordKeeper.CompletedSyncs;
+            FailedSyncsCount.Value = recordKeeper.CurrentFailedSyncs;
+
+            var recordManager = Engine.Current.RecordManager;
+            if (!string.IsNullOrEmpty(recordManager.LastFailReason) && recordKeeper.CurrentFailedSyncs <= 0) {
+                RecordManagerLastFailReasonSetter.Invoke(recordManager, new[] { string.Empty });
+            }
+        }
+
+        private void PrepareRecordAction(IButton button, Action<string> OnRecordReceived)
+        {
+            var syncTaskListItemSlot = button.Slot.GetObjectRoot();
+            var recordId = syncTaskListItemSlot.Name;
+            var recordKeeper = RecordKeeper.Instance;
+            var recordEntry = recordKeeper.GetRecordEntry(recordId);
+
+            if (recordEntry == null) { return; }
+
+            var isSuccessOrProgress = !recordEntry.IsSuccessfulSync.HasValue || recordEntry.IsSuccessfulSync.Value;
+
+            if (isSuccessOrProgress) { return; }
+
+            OnRecordReceived(recordId);
+        }
+
+        private void OnForceSyncPressed(IButton button, ButtonEventData eventData)
+        {
+            if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
+
+            PrepareRecordAction(button, (recordId) => {
+                var record = RecordKeeper.Instance.RestartRecord(recordId);
+                Engine.Current.RecordManager.EnqueueRecordSyncTask(record, true);
+            });
+        }
+
+        private void OnSyncRetryPressed(IButton button, ButtonEventData eventData)
+        {
+            if (!button.Confirm(LIST_ITEM_BODY_ACTION_BTN_CONFIM_TEXT)) { return; }
+
+            PrepareRecordAction(button, (recordId) =>
+            {
+                var record = RecordKeeper.Instance.RestartRecord(recordId);
+                Engine.Current.RecordManager.EnqueueRecordSyncTask(record);
+            });
+        }
+
         private void OnClearHistoryPressed(IButton button, ButtonEventData eventData)
         {
             button.World.RunSynchronously(() =>
             {
-                var syncTaskViewModels = _syncTaskViewModels.Values.ToArray();
+                var syncTaskViewKeys = _syncTaskViewModels.Keys.ToArray();
 
-                for (var i = 0; i < syncTaskViewModels.Length; i++)
+                for (var i = 0; i < syncTaskViewKeys.Length; i++)
                 {
-                    var model = syncTaskViewModels[i];
+                    SyncTaskViewModel model;
+                    var key = syncTaskViewKeys[i];
+                    var hasModel = _syncTaskViewModels.TryGetValue(key, out model);
+
+                    if (!hasModel) { continue; }    
+
                     var recordId = model.RecordId.Value;
                     var hasSlot = _syncTaskSlots.TryGetValue(recordId, out var slot);
-                    var isSuccessful = model.IsTaskSuccessful.Value.HasValue ? model.IsTaskSuccessful.Value.Value : false;
+                    var isSuccessful = model.IsTaskSuccessful;
 
                     if (hasSlot && isSuccessful)
                     {
                         slot.Destroy();
                         model.Dispose();
+                        _syncTaskViewModels.TryRemove(key, out var _);
                     }
                 }
+
+                EmptyListScreenSlot.ActiveSelf = !_syncTaskViewModels.Any();
             });
         }
 
-        private void OnSyncTaskMarkedCompleted(object sender, RecordKeeperEntry e)
+        private void OnSyncTaskRestarted(object sender, RecordKeeperEntryEventArgs entry)
         {
-            Userspace.UserspaceWorld.RunSynchronously(() =>
+            UpdateSyncTaskViewModel(entry.Record, new UploadProgressState("Restarting"));
+        }
+
+        private void OnSyncTaskMarkedCompleted(object sender, RecordKeeperEntryEventArgs e)
+        {
+            Userspace.UserspaceWorld.RunSynchronously(RefreshStatistics);
+
+            if (e.IsSuccessfulSync && e.PreviousFailedAttempts > 0)
             {
-                var recordKeeper = RecordKeeper.Instance;
-                TotalSyncsCompleted.Value = recordKeeper.CompletedSyncs;
-                FailedSyncsCount.Value = recordKeeper.CurrentFailedSyncs;
-            });
+                Userspace.UserspaceWorld.RunSynchronously(() => {
+                    var inventory = InventoryBrowser.CurrentUserspaceInventory;
+                    if (inventory == null) { return; }
+
+                    var currentDirectory = inventory.CurrentDirectory;
+                    var record = e.Record;
+
+                    inventory.Open(null, SlideSwapRegion.Slide.None);
+                });
+            }
         }
 
         public void Dispose()
         {
+            RecordKeeper.Instance.EntryMarkedCompleted -= OnSyncTaskMarkedCompleted;
+            RecordKeeper.Instance.EntryRestarted -= OnSyncTaskRestarted;
+
             ScreenCanvas?.Destroy();
             ScreenCanvas?.Dispose();
         }

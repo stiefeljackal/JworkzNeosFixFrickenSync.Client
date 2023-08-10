@@ -16,6 +16,8 @@ namespace JworkzNeosMod.Client.Models
 
         public UploadProgressState UploadProgress { get; private set; }
 
+        public ushort PreviousFailedAttempts { get; private set; }
+
         public RecordKeeperEntry(Record record, UploadProgressState? state = null)
         {
             Record = record;
@@ -42,6 +44,11 @@ namespace JworkzNeosMod.Client.Models
             UploadProgress = new UploadProgressState(state.Stage, isSuccessful, 1f);
             SyncCompletedDate = DateTimeOffset.Now;
             IsSuccessfulSync = isSuccessful;
+
+            if (!isSuccessful)
+            {
+                PreviousFailedAttempts++;
+            }
         }
 
         public void UpdateUploadProgressState(string stage, bool? isSuccessful = null)
