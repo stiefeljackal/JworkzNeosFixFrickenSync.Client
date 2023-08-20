@@ -27,8 +27,10 @@ This is an **add-in** mod of the [JworkzNeosFixFrickenSync](https://github.com/s
   * Cataena
   * Foxbox
   * Irix
+  * Laserkeet
   * Medra
   * Rucio
   * Storm_DPD
   * Stella
+  * Styx
   * TheSpecterLemon
