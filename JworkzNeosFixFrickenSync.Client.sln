@@ -10,6 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitignore = .gitignore
 		LICENSE = LICENSE
 		README.md = README.md
+		docs\sync_progress_animated.gif = docs\sync_progress_animated.gif
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JworkzNeosFixFrickenSync", "JworkzNeosFixFrickenSync\JworkzNeosFixFrickenSync\JworkzNeosFixFrickenSync.csproj", "{131BCCF9-6220-4831-9832-9671ACE4686E}"

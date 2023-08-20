@@ -1,16 +1,12 @@
 ﻿using HarmonyLib;
 using System;
 using FrooxEngine;
-using BaseX;
 using System.Runtime.CompilerServices;
 using FrooxEngine.UIX;
 using JworkzNeosMod.Patches;
 using JworkzNeosMod.Client.Models;
 using JworkzNeosMod.Events;
 using JworkzNeosMod.Client.Services;
-using System.Reflection;
-using System.Collections.Generic;
-
 namespace JworkzNeosMod.Client.Patches
 {
     [HarmonyPatch(typeof(UserspaceScreensManager))]
