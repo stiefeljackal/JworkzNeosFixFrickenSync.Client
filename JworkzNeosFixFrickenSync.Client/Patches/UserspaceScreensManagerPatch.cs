@@ -69,10 +69,16 @@ namespace JworkzNeosMod.Client.Patches
                 OnUploadTaskUpdate(Userspace.UserspaceWorld, new UploadTaskProgressEventArgs(entry.Record, entry.UploadProgress));
             }
 
-            RecordUploadTaskBasePatch.UploadTaskStart += OnUploadTaskUpdate;
+            RecordUploadTaskBasePatch.UploadTaskStart += OnUploadTaskStart;
             RecordUploadTaskBasePatch.UploadTaskProgress += OnUploadTaskUpdate;
             RecordUploadTaskBasePatch.UploadTaskFailure += OnUploadTaskUpdate;
             RecordUploadTaskBasePatch.UploadTaskSuccess += OnUploadTaskUpdate;
+        }
+
+        private static void OnUploadTaskStart(object _, UploadTaskEventArgsBase @event)
+        {
+            if (SyncScreenCanvas.IsSyncTaskViewModelInProgress(@event.Record)) { return; }
+            OnUploadTaskUpdate(_, @event);
         }
 
         private static void OnUploadTaskUpdate(object _, UploadTaskEventArgsBase @event)

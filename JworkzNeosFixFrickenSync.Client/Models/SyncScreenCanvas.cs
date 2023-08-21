@@ -132,6 +132,14 @@ namespace JworkzNeosMod.Client.Models
             return _syncTaskViewModels.ContainsKey(record.RecordId);
         }
 
+        public bool IsSyncTaskViewModelInProgress(Record record)
+        {
+            if (!HasSyncTaskViewModel(record)) { return false; }
+
+            var viewModel = _syncTaskViewModels[record.RecordId];
+            return viewModel.Progress < 1f;
+        }
+
         public void CreateSyncTaskViewModel(Record record, UploadProgressState state)
         {
             if (HasSyncTaskViewModel(record)) { return; }
