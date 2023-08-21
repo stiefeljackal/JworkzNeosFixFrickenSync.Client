@@ -255,7 +255,7 @@ namespace JworkzNeosMod.Client.Models
 
             UIBuilder.NestInto(bodySlot);
 
-            AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnDeleteUnsyncedPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
+            AddButton("Delete Unsynced", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnDeleteUnsyncedPressed, model.IsTaskFailure, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Force Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnForceSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Keep Both", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnKeepBothSyncPressed, model.IsTaskConflicting, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
             AddButton("Retry Sync", LIST_ITEM_BODY_ACTION_BTN_FONT_SIZE, OnSyncRetryPressed, model.CanTaskRetry, preferredWidth: LIST_ITEM_BODY_ACTION_BTN_PREFERRED_WIDTH);
