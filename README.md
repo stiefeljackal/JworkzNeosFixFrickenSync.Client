@@ -34,3 +34,4 @@ This is an **add-in** mod of the [JworkzNeosFixFrickenSync](https://github.com/s
   * Stella
   * Styx
   * TheSpecterLemon
+* epicEaston197 for reporting issues with retry sync, the missing delete unsynced button on non-conflicting sync tasks, and the very long server response error message.
