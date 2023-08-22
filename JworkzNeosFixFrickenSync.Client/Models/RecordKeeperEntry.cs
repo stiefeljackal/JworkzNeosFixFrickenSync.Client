@@ -8,6 +8,8 @@ namespace JworkzNeosMod.Client.Models
     {
         public Record Record { get; }
 
+        public Record LocalRecord { get; private set; }
+
         public string RecordId => Record.RecordId;
 
         public DateTimeOffset? SyncCompletedDate { get; private set; } = null;
@@ -21,6 +23,10 @@ namespace JworkzNeosMod.Client.Models
         public RecordKeeperEntry(Record record, UploadProgressState? state = null)
         {
             Record = record;
+            if (record.AssetURI.ToLower().StartsWith("local"))
+            {
+                LocalRecord = record.Clone<Record>();
+            }
 
             if (state.HasValue && !string.IsNullOrEmpty(state?.Stage))
             {
@@ -37,6 +43,12 @@ namespace JworkzNeosMod.Client.Models
             UploadProgress = new UploadProgressState("Starting Sync");
             SyncCompletedDate = null;
             IsSuccessfulSync = null;
+
+            if (LocalRecord != null && Record.AssetURI != LocalRecord.AssetURI)
+            {
+                Record.AssetURI = LocalRecord.AssetURI;
+                Record.NeosDBManifest.Clear();
+            }
         }
 
         public void MarkComplete(UploadProgressState state, UploadProgressIndicator indicator = UploadProgressIndicator.Success)
@@ -48,6 +60,10 @@ namespace JworkzNeosMod.Client.Models
             if (indicator == UploadProgressIndicator.Failure)
             {
                 PreviousFailedAttempts++;
+            }
+            else if (indicator == UploadProgressIndicator.Success)
+            {
+                LocalRecord = null;
             }
         }
 
