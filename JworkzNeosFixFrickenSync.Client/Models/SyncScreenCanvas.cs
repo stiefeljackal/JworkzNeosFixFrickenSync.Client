@@ -13,12 +13,15 @@ using JworkzNeosMod.Client.Utilities;
 using RecordUtil = CloudX.Shared.RecordUtil;
 using System.Threading.Tasks;
 using NeosModLoader;
+using System.Text.RegularExpressions;
 
 namespace JworkzNeosMod.Client.Models
 {
     public class SyncScreenCanvas : IDisposable
     {
         public static readonly color BTN_COLOR = new color(0.314f, 0.784f, 0.471f);
+
+        private static readonly Regex CLOUD_ERROR_MSG_REGEX = new Regex("^(?<prefix>.+) PreprocessId: .+ indicate success: (?<code>.+\\));.+\\((\\n|\\r|\\r\\n).+(\\n|\\r|\\r\\n)message : (?<errmsg>.+)(\\n|\\r|\\r\\n)\\);$", RegexOptions.Compiled);
 
         private const byte LIST_PADDING_SIZE = 25;
 
@@ -175,7 +178,16 @@ namespace JworkzNeosMod.Client.Models
                 default:
                     colorStatus = STATE_COLOR_NORMAL; break;
             }
-            model.UpdateInfo(record, colorStatus, state);
+
+            var stage = state.Stage;
+            NeosMod.Msg(stage);
+            if(CLOUD_ERROR_MSG_REGEX.IsMatch(stage))
+            {
+                var cloudMsgMatch = CLOUD_ERROR_MSG_REGEX.Match(stage);
+                stage = $"{cloudMsgMatch.Groups["prefix"]} {cloudMsgMatch.Groups["code"]}; {cloudMsgMatch.Groups["errmsg"]}";
+            }
+
+            model.UpdateInfo(record, colorStatus, state, stage);
         }
 
         private bool RemoveSyncTaskViewModel(string recordId, Predicate<SyncTaskViewModel> predicate = null)

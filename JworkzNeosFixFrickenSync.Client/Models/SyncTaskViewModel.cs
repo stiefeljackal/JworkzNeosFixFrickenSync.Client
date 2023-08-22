@@ -56,6 +56,11 @@ namespace JworkzNeosMod.Client.Models
 
         public void UpdateInfo(Record record, color colorStatus, UploadProgressState state)
         {
+            UpdateInfo(record, colorStatus, state, state.Stage);
+        }
+
+        public void UpdateInfo(Record record, color colorStatus, UploadProgressState state, string stage)
+        {
             var thumbnailUri = record.ThumbnailURI;
 
             StatusColor.Value = colorStatus;
@@ -64,7 +69,7 @@ namespace JworkzNeosMod.Client.Models
             TaskInventoryPath.Value = $"<i>{record.OwnerId} > {(string.IsNullOrEmpty(record.Path) ? $"[{record.RecordType}]" : record.Path)}</i>";
             RecordName.Value = record.Name;
             ThumbnailUri.Value = string.IsNullOrEmpty(thumbnailUri) ? null : new Uri(record.ThumbnailURI);
-            TaskStage.Value = state.Stage;
+            TaskStage.Value = stage ?? string.Empty;
             
             var isTaskSuccessFul = state.Indicator == UploadProgressIndicator.Success;
             var isTaskFailure = state.Indicator == UploadProgressIndicator.Failure;
