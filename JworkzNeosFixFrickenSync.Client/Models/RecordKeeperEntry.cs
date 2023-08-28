@@ -23,7 +23,8 @@ namespace JworkzNeosMod.Client.Models
         public RecordKeeperEntry(Record record, UploadProgressState? state = null)
         {
             Record = record;
-            if (record.AssetURI.ToLower().StartsWith("local"))
+            var assetUri = record.AssetURI;
+            if (!string.IsNullOrEmpty(assetUri) && assetUri.ToLower().StartsWith("local"))
             {
                 LocalRecord = record.Clone<Record>();
             }
